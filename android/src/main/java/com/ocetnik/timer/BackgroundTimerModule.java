@@ -19,6 +19,8 @@ public class BackgroundTimerModule extends ReactContextBaseJavaModule {
     private Runnable runnable;
     private PowerManager powerManager;
     private PowerManager.WakeLock wakeLock;
+    private boolean isDestroyed;
+
     private final LifecycleEventListener listener = new LifecycleEventListener(){
         @Override
         public void onHostResume() {}
@@ -29,11 +31,14 @@ public class BackgroundTimerModule extends ReactContextBaseJavaModule {
         @Override
         public void onHostDestroy() {
             if (wakeLock.isHeld()) wakeLock.release();
+            isDestroyed = true;
+            stop();
         }
     };
 
     public BackgroundTimerModule(ReactApplicationContext reactContext) {
         super(reactContext);
+        this.isDestroyed = false;
         this.reactContext = reactContext;
         this.powerManager = (PowerManager) getReactApplicationContext().getSystemService(reactContext.POWER_SERVICE);
         this.wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rohit_bg_wakelock");
@@ -76,11 +81,12 @@ public class BackgroundTimerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void setTimeout(final int id, final int timeout) {
+        isDestroyed = false;
         Handler handler = new Handler();
         handler.postDelayed(new Runnable(){
             @Override
             public void run(){
-                if (getReactApplicationContext().hasActiveCatalystInstance()) {
+                if (!isDestroyed && getReactApplicationContext().hasActiveCatalystInstance()) {
                     getReactApplicationContext()
                         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                         .emit("backgroundTimer.timeout", id);
